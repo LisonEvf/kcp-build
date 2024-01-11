@@ -312,8 +312,8 @@ struct IKCPCB
 	int fastlimit;
 	int nocwnd, stream;
 	int logmask;
-	/*int (*output)(const char *buf, int len, struct IKCPCB *kcp, void *user);*/
-	/*void (*writelog)(const char *log, struct IKCPCB *kcp, void *user);*/
+	int (*output)(const char *buf, int len, struct IKCPCB *kcp, void *user);
+	void (*writelog)(const char *log, struct IKCPCB *kcp, void *user);
 };
 
 
@@ -332,12 +332,6 @@ typedef struct IKCPCB ikcpcb;
 #define IKCP_LOG_OUT_PROBE		1024
 #define IKCP_LOG_OUT_WINS		2048
 
-#ifdef DLL_EXPORTS
-#define KCPDLL _declspec(dllexport)
-#else
-#define KCPDLL
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -346,31 +340,28 @@ extern "C" {
 // interface
 //---------------------------------------------------------------------
 
-	KCPDLL IINT64 ikcp_get_unixtime();
-
 // create a new kcp control object, 'conv' must equal in two endpoint
 // from the same connection. 'user' will be passed to the output callback
 // output callback can be setup like this: 'kcp->output = my_udp_output'
-	KCPDLL ikcpcb* ikcp_create(IUINT32 conv, void *user);
+ikcpcb* ikcp_create(IUINT32 conv, void *user);
 
 // release kcp control object
-	KCPDLL void ikcp_release(ikcpcb *kcp);
+void ikcp_release(ikcpcb *kcp);
 
 // set output callback, which will be invoked by kcp
-	KCPDLL void ikcp_setoutput(int(*output)(const char *buf, int len, ikcpcb *kcp, void *user));
-
-	KCPDLL void ikcp_setlog(void(*writelog)(const char *buf, int len, ikcpcb *kcp, void *user));
+void ikcp_setoutput(ikcpcb *kcp, int (*output)(const char *buf, int len, 
+	ikcpcb *kcp, void *user));
 
 // user/upper level recv: returns size, returns below zero for EAGAIN
-	KCPDLL int ikcp_recv(ikcpcb *kcp, char *buffer, int index, int len);
+int ikcp_recv(ikcpcb *kcp, char *buffer, int len);
 
 // user/upper level send, returns below zero for error
-	KCPDLL int ikcp_send(ikcpcb *kcp, const char *buffer, int offset, int len);
+int ikcp_send(ikcpcb *kcp, const char *buffer, int len);
 
 // update state (call it repeatedly, every 10ms-100ms), or you can ask 
 // ikcp_check when to call it again (without ikcp_input/_send calling).
 // 'current' - current timestamp in millisec. 
-	KCPDLL void ikcp_update(ikcpcb *kcp, IUINT32 current);
+void ikcp_update(ikcpcb *kcp, IUINT32 current);
 
 // Determine when should you invoke ikcp_update:
 // returns when you should invoke ikcp_update in millisec, if there 
@@ -379,44 +370,42 @@ extern "C" {
 // Important to reduce unnacessary ikcp_update invoking. use it to 
 // schedule ikcp_update (eg. implementing an epoll-like mechanism, 
 // or optimize ikcp_update when handling massive kcp connections)
-	KCPDLL IUINT32 ikcp_check(const ikcpcb *kcp, IUINT32 current);
+IUINT32 ikcp_check(const ikcpcb *kcp, IUINT32 current);
 
 // when you received a low level packet (eg. UDP packet), call it
-	KCPDLL int ikcp_input(ikcpcb* kcp, const char* data, int offset, int size);
+int ikcp_input(ikcpcb *kcp, const char *data, long size);
 
 // flush pending data
-	KCPDLL void ikcp_flush(ikcpcb *kcp);
+void ikcp_flush(ikcpcb *kcp);
 
 // check the size of next message in the recv queue
-	KCPDLL int ikcp_peeksize(const ikcpcb *kcp);
+int ikcp_peeksize(const ikcpcb *kcp);
 
 // change MTU size, default is 1400
-	KCPDLL int ikcp_setmtu(ikcpcb *kcp, int mtu);
+int ikcp_setmtu(ikcpcb *kcp, int mtu);
 
 // set maximum window size: sndwnd=32, rcvwnd=32 by default
-	KCPDLL int ikcp_wndsize(ikcpcb *kcp, int sndwnd, int rcvwnd);
+int ikcp_wndsize(ikcpcb *kcp, int sndwnd, int rcvwnd);
 
 // get how many packet is waiting to be sent
-	KCPDLL int ikcp_waitsnd(const ikcpcb *kcp);
+int ikcp_waitsnd(const ikcpcb *kcp);
 
 // fastest: ikcp_nodelay(kcp, 1, 20, 2, 1)
 // nodelay: 0:disable(default), 1:enable
 // interval: internal update timer interval in millisec, default is 100ms 
 // resend: 0:disable fast resend(default), 1:enable fast resend
 // nc: 0:normal congestion control(default), 1:disable congestion control
-	KCPDLL int ikcp_nodelay(ikcpcb *kcp, int nodelay, int interval, int resend, int nc);
+int ikcp_nodelay(ikcpcb *kcp, int nodelay, int interval, int resend, int nc);
 
 
-	KCPDLL void ikcp_log(ikcpcb *kcp, int mask, const char *fmt, ...);
+void ikcp_log(ikcpcb *kcp, int mask, const char *fmt, ...);
 
 // setup allocator
-	KCPDLL void ikcp_allocator(void* (*new_malloc)(size_t), void (*new_free)(void*));
+void ikcp_allocator(void* (*new_malloc)(size_t), void (*new_free)(void*));
 
 // read conv
-	KCPDLL IUINT32 ikcp_getconv(const void *ptr);
+IUINT32 ikcp_getconv(const void *ptr);
 
-	// set min rto
-	KCPDLL void ikcp_setminrto(ikcpcb *kcp, int Minrto);
 
 #ifdef __cplusplus
 }
